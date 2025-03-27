@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_flip_card/flutter_flip_card.dart';
 import 'package:j_flash/components/navigation_drawer.dart';
+import 'package:j_flash/main_functionaltities/provider/deck_content_provider.dart';
 import 'package:j_flash/models/card.dart';
-import 'package:j_flash/util/db.dart';
+import 'package:j_flash/repository/card_repository.dart';
+import 'package:provider/provider.dart';
 
 class CardViewPage extends StatefulWidget {
   const CardViewPage({super.key, required this.title});
@@ -16,21 +18,20 @@ class CardViewPage extends StatefulWidget {
 class _CardViewPageState extends State<CardViewPage> {
   var controller = FlipCardController();
 
-  DatabaseHelper db = DatabaseHelper.instance;
+  CardEntityRepository db = CardEntityRepository();
 
   Padding flipFace(String text) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Container(
-        height: 300,
-        width: 500,
+        width: 300,
         decoration: const BoxDecoration(
           color: Colors.blueGrey,
           borderRadius: BorderRadius.all(Radius.circular(30)),
           boxShadow: [
             BoxShadow(
               blurRadius: 20,
-              blurStyle: BlurStyle.solid,
+              blurStyle: BlurStyle.outer,
               color: Colors.blueGrey,
               spreadRadius: 5,
             )
@@ -49,25 +50,24 @@ class _CardViewPageState extends State<CardViewPage> {
     );
   }
 
-  Future<Widget> _generateCard(int cardId) async {
-    return FutureBuilder(
-        future: db.fetchCard(cardId),
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            final card = snapshot.data as CardEntity;
+  Widget _generateCards(List<CardEntity> cards) {
+    return SizedBox(
+        height: 300,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: cards.length,
+          itemBuilder: (context, index) {
             return FlipCard(
               onTapFlipping: true,
               rotateSide: RotateSide.left,
               axis: FlipAxis.vertical,
               controller: controller,
-              frontWidget: flipFace(card.front),
-              backWidget: flipFace(card.back),
+              frontWidget: flipFace(cards[index].front),
+              backWidget: flipFace(cards[index].back),
               animationDuration: const Duration(milliseconds: 500),
             );
-          } else {
-            return const Text("No data available");
-          }
-        });
+          },
+        ));
   }
 
   @override
@@ -75,33 +75,20 @@ class _CardViewPageState extends State<CardViewPage> {
     var args = (ModalRoute.of(context)?.settings.arguments as List);
 
     return Scaffold(
-      drawer: const CustomNavigationDrawer(
-        selectedIndex: 0,
-      ),
-      appBar: AppBar(
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          foregroundColor: Colors.white,
-          title: Text(args[0].toString())),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 50, 0, 0),
-        child: FutureBuilder<Widget>(
-          future: _generateCard(args[0] as int),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            } else if (snapshot.hasData) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [snapshot.data!],
-              );
-            } else {
-              return const Center(child: Text('No data available'));
-            }
-          },
+        drawer: const CustomNavigationDrawer(
+          selectedIndex: 0,
         ),
-      ),
-    );
+        appBar: AppBar(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            title: Text(args[0].toString())),
+        body: ChangeNotifierProvider(
+          create: (_) => DeckContentProvider(args[0]),
+          child: Consumer<DeckContentProvider>(
+            builder: (context, deckContentProvider, child) {
+              return _generateCards(deckContentProvider.cards);
+            },
+          ),
+        ));
   }
 }
